@@ -48,7 +48,7 @@ def transform_convert_clean(cropped_img, cropped_mask):
     k = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]], dtype=float)
     I_kernel = cv2.filter2D(I_new, ddepth=-1, kernel=k)
     # extract the ROI, sets bg to black
-    puzzle_piece = cv2.bitwise_and(I_kernel, I_kernel, mask=cropped_mask)
+    piece_only = cv2.bitwise_and(I_kernel, I_kernel, mask=cropped_mask)
     
-    return puzzle_piece
+    return piece_only
     
