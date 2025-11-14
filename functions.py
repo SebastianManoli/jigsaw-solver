@@ -62,6 +62,32 @@ def segment_contours_cropping(mask, image, min_area_ratio=0.005):
 
     return pieces
 
+
+def piece_boundary(cropped_mask):
+
+    # Find contours on the new mask (copped)
+    contours, _ = cv2.findContours(cropped_mask, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_NONE)
+    
+    if not contours:
+        return None
+    
+    piece_contour = max(contours, key=cv2.contourArea)
+    
+    return piece_contour
+
+def detect_corners(contour):
+
+    # Corners = cv2.goodFeaturesToTrack(G, maxCorners=4, qualityLevel=0.1, minDistance=10)
+
+    perimeter = cv2.arcLength(contour, closed=True)
+    epsilon = 0.02 * perimeter
+    Corners = cv2.approxPolyDP(contour, epsilon, closed=True)
+    
+    return Corners
+    
+
+    
+
 def transform_convert_clean(cropped_img, cropped_mask):
     # convert to YUV
     cropped_img_YUV = cv2.cvtColor(cropped_img, cv2.COLOR_BGR2YUV)
@@ -79,3 +105,4 @@ def transform_convert_clean(cropped_img, cropped_mask):
     piece_only = cv2.bitwise_and(I_kernel, I_kernel, mask=cropped_mask)
 
     return piece_only
+
