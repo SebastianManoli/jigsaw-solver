@@ -179,7 +179,7 @@ def segment_sides(contour, corners):
     return sides
 
 def classify_side(side_contour):
-    
+
     start_point = side_contour[0]
     end_point = side_contour[-1]
     
@@ -204,6 +204,19 @@ def classify_side(side_contour):
             return "TAB"
         else:
             return "SLOT"
+        
+def classify_piece(side_types):
+
+    flat_count = side_types.count('FLAT')
+    
+    if flat_count == 2:
+        return "CORNER"
+    elif flat_count == 1:
+        return "EDGE"
+    elif flat_count == 0:
+        return "MIDDLE"
+    else:
+        return "UNKNOWN"
     
 
 
