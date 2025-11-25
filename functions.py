@@ -238,3 +238,70 @@ def transform_convert_clean(cropped_img, cropped_mask):
 
     return piece_only
 
+
+def get_normalized_contour(contour):
+    # 1. Get endpoints
+    p1 = contour[0]
+    p2 = contour[-1]
+    
+    # Handle case where contour might be (N, 1, 2) or (N, 2)
+    if len(p1.shape) > 1: # (1, 2)
+        p1 = p1[0]
+        p2 = p2[0]
+    elif len(p1.shape) == 1:
+        pass # p1 is (2,)
+    
+    # 2. Calculate angle to rotate p1-p2 to horizontal
+    dx, dy = p2[0] - p1[0], p2[1] - p1[1]
+    angle_rad = np.arctan2(dy, dx)
+    angle_deg = np.degrees(angle_rad)
+    
+    # 3. Rotate all points
+    # We want to align the line p1-p2 with the x-axis.
+    # In image coords (y-down), positive angle is CW (down).
+    # So if line is down (+angle), we need to rotate CCW (up, -angle).
+    # However, cv2.getRotationMatrix2D with positive angle rotates CCW (visually Up).
+    # So to correct a +45 deg (Down-Right) line to 0 deg (Right), we rotate CCW (Up) by 45 deg.
+    rotation_matrix = cv2.getRotationMatrix2D(tuple(p1.astype(float)), angle_deg, 1.0)
+    
+    # Ensure contour is (N, 1, 2) for cv2.transform
+    pts = contour.reshape(-1, 1, 2).astype(float)
+    rotated_pts = cv2.transform(pts, rotation_matrix)
+    
+    # 4. Translate so p1 is at (0,0)
+    t_x, t_y = rotated_pts[0][0]
+    normalized_pts = rotated_pts - [t_x, t_y]
+    
+    return normalized_pts.astype(np.float32)
+
+
+
+def calculate_match_score(side_A, side_B, type_A, type_B):
+    # 1. Compatibility Check
+    if type_A == "FLAT" or type_B == "FLAT":
+        return float('inf')
+    if type_A == type_B: # TAB-TAB or SLOT-SLOT don't match
+        return float('inf')
+    
+    # 2. Normalize
+    norm_A = get_normalized_contour(side_A)
+    norm_B = get_normalized_contour(side_B)
+    
+    # 3. Invert Side B (Flip over X-axis)
+    # We want to see if A fits into B.
+    # If A is TAB (bump up) and B is SLOT (dip down),
+    # Normalization makes B a dip down.
+    # Inverting B makes it a bump up.
+    # Then we compare bump A with bump B.
+    
+    inverted_B = norm_B.copy()
+    inverted_B[:, 0, 1] *= -1
+    
+    # 4. Calculate Match Score (Hu Moments)
+    # Method=1 (CV_CONTOURS_MATCH_I1) is often good. Lower is better.
+    try:
+        score = cv2.matchShapes(norm_A, inverted_B, cv2.CONTOURS_MATCH_I1, 0.0)
+    except cv2.error:
+        return float('inf') # Handle potential errors with empty contours
+        
+    return score
