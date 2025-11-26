@@ -75,84 +75,30 @@ def piece_boundary(cropped_mask):
     
     return piece_contour
 
-# def detect_corners(contour):
-
-#     hull = cv2.convexHull(contour)
-    
-#     perimeter = cv2.arcLength(hull, closed=True)
-#     epsilon = 0.05 * perimeter  # Start with 5%, adjust if needed
-#     corners = cv2.approxPolyDP(hull, epsilon, closed=True)
-    
-#     if len(corners) != 4:
-#         epsilon = 0.1 * perimeter
-#         corners = cv2.approxPolyDP(hull, epsilon, closed=True)
-    
-#     return corners
-
 def detect_corners(contour):
     x, y, w, h = cv2.boundingRect(contour)
     
-    corners_rect = np.array([
+    rect_corners = [
         [x, y],           # top-left
         [x + w, y],       # top-right  
         [x + w, y + h],   # bottom-right
         [x, y + h]        # bottom-left
-    ])
-    
-    contour_reshaped = contour.reshape(-1, 2)
-    refined_corners = []
-    
-    # For each bounding box corner, look INWARD for the real corner
-    inward_offsets = [
-        (20, 20),    # top-left: look down and right
-        (-20, 20),   # top-right: look down and left
-        (-20, -20),  # bottom-right: look up and left
-        (20, -20)    # bottom-left: look up and right
     ]
     
-    for corner, offset in zip(corners_rect, inward_offsets):
-        # Search region is slightly INWARD from bounding box
-        search_center = corner + np.array(offset)
-        
-        distances = np.linalg.norm(contour_reshaped - search_center, axis=1)
-        nearby_indices = np.where(distances < 60)[0]
-        
-        if len(nearby_indices) < 3:
-            closest_idx = np.argmin(distances)
-            refined_corners.append(contour_reshaped[closest_idx])
-            continue
-        
-        best_idx = nearby_indices[0]
-        best_score = float('inf')
-        contour_len = len(contour_reshaped)
-        
-        for idx in nearby_indices:
-            p1 = contour_reshaped[(idx - 15) % contour_len]
-            p2 = contour_reshaped[idx]
-            p3 = contour_reshaped[(idx + 15) % contour_len]
-            
-            v1 = p1 - p2
-            v2 = p3 - p2
-            
-            norm_product = np.linalg.norm(v1) * np.linalg.norm(v2)
-            if norm_product > 0:
-                cos_angle = np.dot(v1, v2) / norm_product
-                cos_angle = np.clip(cos_angle, -1, 1)
-                angle = np.degrees(np.arccos(cos_angle))
-                
-                angle_diff = abs(angle - 90)
-                distance = np.linalg.norm(contour_reshaped[idx] - search_center)
-                
-                # Heavily weight the angle (tabs have sharper angles than 90)
-                score = (angle_diff * 3) + (distance / 5)
-                
-                if score < best_score:
-                    best_score = score
-                    best_idx = idx
-        
-        refined_corners.append(contour_reshaped[best_idx])
+    contour_pts = contour.reshape(-1, 2)
+    actual_corners = []
     
-    return np.array(refined_corners, dtype=np.int32).reshape(-1, 1, 2)
+    for rect_corner in rect_corners:
+        distances = []
+        for pt in contour_pts:
+            dist = np.sqrt((pt[0] - rect_corner[0])**2 + (pt[1] - rect_corner[1])**2)
+            distances.append(dist)
+        
+        min_idx = distances.index(min(distances))
+        actual_corners.append(contour_pts[min_idx])
+    
+    corners = np.array(actual_corners, dtype=np.int32)
+    return corners.reshape(-1, 1, 2)
 
 def segment_sides(contour, corners):
     contour_reshaped = contour.reshape(-1, 2)
